@@ -1,5 +1,22 @@
 <?php
 
+/*
+Date        Ver  Change
+----------  ---  -------------------------------------------------------
+            0.1  Started (partial)
+            0.2 
+            0.3  splitted tinyHttp introducing tinyHttpReponse
+            1.0  First working version
+2018-10-09  1.1  new methods: tinyHttp::removeHeader(), tinyHttp::setDebug()
+2018-10-19  1.1a added missing prototypes
+2019-11-27  1.2  new methods: tinyHttp::getHeaders(), tinyHttp::getVersion()
+                 added 'Host:' header (mandatory in HTTP 1.1)
+                 moved url analysis from send() to setUrl()
+                 setUrl can now throw an exception if url is not correct
+                 tinyHttp::port set from url when provided
+*/
+
+
 // minimal http class using only native php functions
 // whenever possible, interface mimics pear http_request2
 // this class is mainly a wrapper around file_get_contents() so it will behave just as file_get_contents does
@@ -41,15 +58,8 @@
 // $h -> send();
 //
 // Limits (far from exhaustive):
-// - the only supported method is GET
 // - no chaining of methods
 //
-
-/*
-0.1 First
-0.2 
-0.3 splitted tinyHttp introducing tinyHttpReponse
-*/
 
 class tinyHttp_Exception extends Exception
 {
@@ -75,13 +85,13 @@ class tinyHttpResponse
 	}
 
 	public function
-	setContent ($content)
+	setContent ($content): void
 	{
 		$this -> content = $content;
 	}
 
 	public function
-	setHeaders ($headers)
+	setHeaders (array $headers): void
 	{
 		$this -> headers = [ ];
 		foreach ($headers as $hdr)
@@ -202,28 +212,48 @@ class tinyHttp
 	const METHOD_POST = 'POST';
 
 	// parms
-	private $url;
-	private $method;	// METHOD_...
-	private $protocol;
-	private $host;
-	private $port;
+	private $method;	// METHOD_GET, METHOD_POST
+	private $url;           // as provided
+	private $protocol = ''; // 'http', 'https' computed from url
+	private $host = '';	// computed from url
+	private $port = 0;      // computed from url
+
 	private $follow_redirects = false;
 	private $max_redirects = 10;
+	private $debugLevel;    // 0, 1
 
 	// query
-	private $query_headers;
-	private $query_content;
+	private $query_headers; // array of name => value
+	private $query_content; // string, as sent
 
-	private $response;
+	private $response;	// tinyHttpResponse object
 
 	// protocol must be 'http' or 'https'
 	public function
 	__construct(string $url = '', $method = tinyHttp::METHOD_GET)
 	{
-		$this -> setUrl ($url);
+		$this -> url = '';
+
+		if ($url != '')
+			$this -> setUrl ($url);
+
 		$this -> setMethod ($method);
 		$this -> resetHeaders();
 		$this -> setContent ('');
+	}
+
+	public function
+	getVersion(): string
+	{
+		return '1.2';
+	}
+
+	public function
+	setDebug (int $debugLevel): void
+	{
+		$this -> debugLevel = $debugLevel;
+		if ($this -> debugLevel > 0)
+			echo 'Starting debug of ' .  __FILE__ . "\n";
 	}
 
 	//
@@ -243,8 +273,34 @@ class tinyHttp
 	}
 
 	public function
+	setPort (int $port): void
+	{
+		$this -> port = $port;
+	}
+
+	public function
 	setUrl(string $url): void
 	{
+		// 1.2: moved here (was in send() before)
+
+		if( !preg_match( "#([^:]+):#", $url, $out ) )
+			throw new tinyHttp_Exception ('url should start with protocol: ');
+
+		$url_parts = parse_url ($url);
+		if (!$url_parts)
+			throw new tinyHttp_Exception ('ill formed url');
+
+		$this -> protocol = $url_parts['scheme'];
+		if ($this -> debugLevel > 0)
+			echo "protocol: " . $this -> protocol . "\n";
+		$this -> host     = $url_parts['host'];
+		if ($this -> debugLevel > 0)
+			echo "host: " . $this -> host . "\n";
+
+		// 1.2
+		if (array_key_exists ('port', $url_parts))
+			$this -> setPort ($url_parts['port']);
+
 		$this -> url = $url;
 	}
 
@@ -261,7 +317,7 @@ class tinyHttp
 	public function
 	setConfig ($nameOrConfig, $value = null): void
 	{
-		if (is_array ($nameOrConfig))
+		 if (is_array ($nameOrConfig))
 			foreach ($nameOrConfig as $name => $value)
 				$this -> setConfigItem ($name, $value);
 		else
@@ -283,22 +339,14 @@ class tinyHttp
 	// Run !
 	//
 
-	// returns body
 	public function
-	send()
+	send(): tinyHttpResponse
 	{
-		if( !preg_match( "#([^:]+):#", $this -> url, $out ) )
-			throw new tinyHttp_Exception ('url should start with protocol: ');
+		if ($this -> url == '')
+			throw new tinyHttp_Exception ('no valid url provided');
 
 		if (!in_array ($this -> method, [ 'GET', 'POST' ] ))
 			throw new tinyHttp_Exception ('method not implemented: ' . $this -> method);
-
-		$url_parts = parse_url ($this -> url);
-		if (!$url_parts)
-			throw new tinyHttp_Exception ('ill formed url');
-
-		$this -> protocol = $url_parts['scheme'];
-		$this -> host     = $url_parts['host'];
 
 		if (!in_array ($this -> protocol, [ 'http', 'https' ] ))
 			throw new tinyHttp_Exception ('protcol is not supported');
@@ -313,13 +361,19 @@ class tinyHttp
 		$http_context['follow_location']  = $this -> follow_redirects;
 		$http_context['max_redirects']    = $this -> max_redirects;
 		$http_context['ignore_errors'] = true; // if false, file_get_contents() will return false if 404 - if true, will return data
-		// $http_context['content'] = $data	// when POST - made with http_build_query()
 
 		/*
 		Note that if you set the protocol_version option to 1.1 and the server you are requesting from is configured to use keep-alive connections, the function (fopen, file_get_contents, etc.) will "be slow" and take a long time to complete. This is a feature of the HTTP 1.1 protocol you are unlikely to use with stream contexts in PHP.
 		Simply add a "Conection: close" header to the request to eliminate the keep-alive timeout:
 		*/
-		$this -> query_headers['Connection'] = 'Close';
+
+		// $this -> setHeader ('Connection', 'Close');
+
+		// 1.2
+		$host = $this -> host;
+		if ($this -> port != 0)
+			$host .= ':' . $this -> port;
+		$this -> setHeader ('Host', $host);
 
 		$header = '';
 		foreach ($this -> query_headers as $name => $value)
@@ -339,9 +393,17 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 
 		$http_context['content'] = $this -> query_content;
 
+		if ($this -> debugLevel > 0)
+			echo "building context..." . "\n";
 		$context = stream_context_create([ 'http' => $http_context ]);
+		if ($this -> debugLevel > 0)
+			echo "context built" . "\n";
 
+		if ($this -> debugLevel > 0)
+			echo "creating tinyHttpResponse..." . "\n";
 		$this -> response = new tinyHttpResponse();
+		if ($this -> debugLevel > 0)
+			echo "tinyHttpResponse created" . "\n";
 
 		// if an error occurs, file_get_contents will not raise an exception
 		// but display error message
@@ -351,16 +413,27 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		// 1. set an error handler that will receive the error message
 		// 2. have the error handler raise an exception with the error message
 
+		if ($this -> debugLevel > 0)
+			echo "setting error handler..." . "\n";
 		set_error_handler(
 		    create_function(
 			'$severity, $message, $file, $line',
 			'throw new ErrorException($message, $severity, $severity, $file, $line);'
 		    )
 		);
+		if ($this -> debugLevel > 0)
+			echo "error handler set" . "\n";
 
 		try
 		{
-			$content = @file_get_contents ($this -> url, false, $context);
+			if ($this -> debugLevel > 0)
+			{
+				echo "Sending request" . "\n";
+				echo 'url: ' . $this -> url . "\n";
+			}
+			$content = file_get_contents ($this -> url, false, $context);
+			if ($this -> debugLevel > 0)
+				echo "Got a response" . "\n";
 			restore_error_handler();
 		} catch (Exception $e) {
 			restore_error_handler();
@@ -390,6 +463,8 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	public function
 	setMethod(string $method): void
 	{
+		if ($this -> debugLevel > 0)
+			echo "setting method to " . $method . "\n";
 		switch ($method)
 		{
 		case tinyHttp::METHOD_GET :
@@ -411,6 +486,19 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		$this -> query_headers = [ ];
 	}
 
+	public function
+	removeHeader (string $name): void
+	{
+		if (array_key_exists ($name, $this -> query_headers))
+			unset ($this -> query_headers[$name]);
+	}
+
+	public function
+	getHeaders(): array
+	{
+		return $this -> query_headers;
+	}
+
 	// to set a single header:
 	// setHeader ('header', 'value')
 	// to set a group of headers:
@@ -428,6 +516,8 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	private function
 	setSingleHeader (string $name, string $value): void
 	{
+		if ($this -> debugLevel > 0)
+			echo "setting header:  " . $name . ": " . $value . "\n";
 		$this -> query_headers[$name] = $value;
 	}
 
@@ -435,7 +525,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	public function
 	setContentType (string $contentType): void
 	{
-		$this -> setHeader('Content-Type', $contentType);
+		$this -> setHeader('Content-type', $contentType);
 	}
 
 	// shorthand for User-Agent header
