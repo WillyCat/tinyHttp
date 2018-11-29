@@ -9,7 +9,7 @@ Date        Ver  Change
             1.0  First working version
 2018-10-09  1.1  new methods: tinyHttp::removeHeader(), tinyHttp::setDebug()
 2018-10-19  1.1a added missing prototypes
-2019-11-27  1.2  new methods: tinyHttp::getHeaders(), tinyHttp::getVersion()
+2018-11-27  1.2  new methods: tinyHttp::getHeaders(), tinyHttp::getVersion()
                  added 'Host:' header (mandatory in HTTP 1.1)
                  moved url analysis from send() to setUrl()
                  setUrl can now throw an exception if url is not correct
