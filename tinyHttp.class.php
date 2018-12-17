@@ -14,6 +14,8 @@ Date        Ver  Change
                  moved url analysis from send() to setUrl()
                  setUrl can now throw an exception if url is not correct
                  tinyHttp::port set from url when provided
+2018-12-17  1.3  - new methods: resetHeaders(), setHeader()
+                 - when Content-Length header is not provided, getContentLength() returned null, now returns text length
 */
 
 
@@ -91,9 +93,21 @@ class tinyHttpResponse
 	}
 
 	public function
-	setHeaders (array $headers): void
+	resetHeaders (): void
 	{
 		$this -> headers = [ ];
+	}
+
+	public function
+	setHeader (string $name, string $value): void
+	{
+		$this -> headers [$name] = $value;
+	}
+
+	public function
+	setHeaders (array $headers): void
+	{
+		$this -> resetHeaders();
 		foreach ($headers as $hdr)
 		{
 			$t = explode (':', $hdr, 2);
@@ -134,7 +148,7 @@ class tinyHttpResponse
 	{
 		$l = $this -> getHeader ('Content-Length');
 		if (is_null ($l))
-			$l = 0;
+			$l = strlen ($this -> content);
 		return $l;
 	}
 
@@ -410,7 +424,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		// we do not want the message to pollute display but we do want to miss the message
 		// to have file_get_contents raise an exception with the error message,
 		// we do the following :
-		// 1. set an error handler that will receive the error message
+		// 1. set an error handler that will catch any error occurring
 		// 2. have the error handler raise an exception with the error message
 
 		if ($this -> debugLevel > 0)
@@ -418,7 +432,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		set_error_handler(
 		    create_function(
 			'$severity, $message, $file, $line',
-			'throw new ErrorException($message, $severity, $severity, $file, $line);'
+			'throw new ErrorException($message, 0, $severity, $file, $line);'
 		    )
 		);
 		if ($this -> debugLevel > 0)
