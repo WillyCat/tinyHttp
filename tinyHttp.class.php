@@ -1,73 +1,81 @@
 <?php
+/**
+ * @package tinyHttp
+ * @version $Revision: 1.6 $
+ *
+ * minimal http class using only native php functions
+ * whenever possible, interface mimics pear http_request2
+ * this class is mainly a wrapper around file_get_contents() so it will behave just as file_get_contents does
+ *
+ * usage:
+ *
+ * try {
+ * $h = new tinyHttp ('http://www.site.com');
+ * $h -> getUrl() // http://www.site.com
+ * $h -> getScheme() // string (http)
+ * $h -> getHost() // string (www.site.com)
+ * $h -> getMethod() // string (get)
+ * $h -> setConfig ('follow_redirects', true);
+ * $h -> setConfig ('max_redirects', 10);
+ * $h -> setHeader ('Accept', 'application/vnd.discogs.v2.html+json');
+ * $r = $h -> send();
+ * $r -> getStatus() // 200
+ * $r -> getHeaders() // array of code:value
+ * $r -> getHeader('Content-Length') // header value or null
+ * $r -> getContentLength() // Content-Length value or 0
+ * $r -> getBody() // string, can be empty
+ * } catch (tinyHttp_Exception $e) {
+ *   $e -> getMessage()
+ * }
+ *
+ * $h = new tinyHttp();
+ * $h -> setUrl('http://www.site.com');
+ *
+ * $h = new tinyHttp ('http://www.site.com', tinyHttp::METHOD_GET);
+ *
+ * class implements __toString() :
+ * echo new tinyHttp('http://www.site.com');
+ * will display the content of the page behind the url
+ *
+ * $h = new tinyHttp();
+ * $h -> setMethod('POST');
+ * $h -> setPostValues ([ 'q' => 'xxx', 'login' => $login ]);
+ * $h -> send();
+ *
+ *
+ * Date        Ver  Change
+ * ----------  ---  -------------------------------------------------------
+ *             0.1  Started (partial)
+ *             0.2 
+ *             0.3  splitted tinyHttp introducing tinyHttpReponse
+ *             1.0  First working version
+ * 2018-10-09  1.1  new methods: tinyHttp::removeHeader(), tinyHttp::setDebugLevel()
+ * 2018-10-19  1.1a added missing prototypes
+ * 2018-11-27  1.2  new methods: tinyHttp::getHeaders(), tinyHttp::getVersion()
+ *                  added 'Host:' header (mandatory in HTTP 1.1)
+ *                  moved url analysis from send() to setUrl()
+ *                  setUrl can now throw an exception if url is not correct
+ *                  tinyHttp::port set from url when provided
+ * 2018-12-17  1.3  - new methods: resetHeaders(), setHeader()
+ *                  - when Content-Length header is not provided, getContentLength() returned null, now returns text length
+ * 2018-12-26  1.4                 
+ *                  - bugfix: getVersion() was still returning 1.2 (fixed)
+ *                  - when using https, checks that openssl is loaded
+ *                  - new class tinyUrl
+ *                  - new trait tinyDebug, improved debug
+ *                  - more http codes
+ *                  - renamed "protocol" as "scheme"
+ * 2018-12-27  1.5  fixed some broken compatibility issues with previous versions
+ * 2019-01-04  1.6  fixed prototype error in tinyUrl::setQuery
+ *                  new: tinyUrl::resetQuery(), tinyUrl::addQuery()
+ *                  added phpdoc infos for tinyURL (other classes to come)
+ */
 
-/*
-Date        Ver  Change
-----------  ---  -------------------------------------------------------
-            0.1  Started (partial)
-            0.2 
-            0.3  splitted tinyHttp introducing tinyHttpReponse
-            1.0  First working version
-2018-10-09  1.1  new methods: tinyHttp::removeHeader(), tinyHttp::setDebugLevel()
-2018-10-19  1.1a added missing prototypes
-2018-11-27  1.2  new methods: tinyHttp::getHeaders(), tinyHttp::getVersion()
-                 added 'Host:' header (mandatory in HTTP 1.1)
-                 moved url analysis from send() to setUrl()
-                 setUrl can now throw an exception if url is not correct
-                 tinyHttp::port set from url when provided
-2018-12-17  1.3  - new methods: resetHeaders(), setHeader()
-                 - when Content-Length header is not provided, getContentLength() returned null, now returns text length
-2018-12-26  1.4                 
-                 - bugfix: getVersion() was still returning 1.2 (fixed)
-                 - when using https, checks that openssl is loaded
-                 - new class tinyUrl
-                 - new trait tinyDebug, improved debug
-                 - more http codes
-                 - renamed "protocol" as "scheme"
-*/
-
-// minimal http class using only native php functions
-// whenever possible, interface mimics pear http_request2
-// this class is mainly a wrapper around file_get_contents() so it will behave just as file_get_contents does
-
-// usage:
-//
-// try {
-// $h = new tinyHttp ('http://www.site.com');
-// $h -> getUrl() // http://www.site.com
-// $h -> getScheme() // string (http)
-// $h -> getHost() // string (www.site.com)
-// $h -> getMethod() // string (get)
-// $h -> setConfig ('follow_redirects', true);
-// $h -> setConfig ('max_redirects', 10);
-// $h -> setHeader ('Accept', 'application/vnd.discogs.v2.html+json');
-// $r = $h -> send();
-// $r -> getStatus() // 200
-// $r -> getHeaders() // array of code:value
-// $r -> getHeader('Content-Length') // header value or null
-// $r -> getContentLength() // Content-Length value or 0
-// $r -> getBody() // string, can be empty
-// } catch (tinyHttp_Exception $e) {
-//   $e -> getMessage()
-// }
-
-// $h = new tinyHttp();
-// $h -> setUrl('http://www.site.com');
-//
-// $h = new tinyHttp ('http://www.site.com', tinyHttp::METHOD_GET);
-//
-// class implements __toString() :
-// echo new tinyHttp('http://www.site.com');
-// will display the content of the page behind the url
-//
-// $h = new tinyHttp();
-// $h -> setMethod('POST');
-// $h -> setPostValues ([ 'q' => 'xxx', 'login' => $login ]);
-// $h -> send();
-//
 // Improvement ideas :
 // - chaining of methods
 //
 
+// Note:
 // 'private' can be called by tinyClass only
 // 'protected' can be called by tinyHttp object (heriting from tinyClass)
 // 'public' can be called outside tinyHttp object (instanciating tinyHttp)
@@ -79,6 +87,9 @@ trait tinyDebug
 	private $debugFile = null;
 	private $debugFilename = '';
 
+	/**
+	 *
+	 */
 	protected function
 	debug (string $message, string $level = 'I'): void
 	{
@@ -104,6 +115,9 @@ trait tinyDebug
 		}
 	}
 
+	/**
+	 *
+	 */
 	private function
 	closeCurrentChannel()
 	{
@@ -119,6 +133,9 @@ trait tinyDebug
 		}
 	}
 
+	/**
+	 *
+	 */
 	private function
 	openChannel (string $channel, string $opt)
 	{
@@ -135,6 +152,9 @@ trait tinyDebug
 		$this -> debugChannel = $channel;
 	}
 
+	/**
+	 *
+	 */
 	public function
 	setDebugChannel (string $channel, string $opt = ''): void
 	{
@@ -142,12 +162,18 @@ trait tinyDebug
 		$this -> openChannel($channel, $opt);
 	}
 
+	/**
+	 *
+	 */
 	protected function
 	getDebugChannel (): string
 	{
 		return $this -> channel;
 	}
 
+	/**
+	 *
+	 */
 	public function
 	setDebugLevel (int $debugLevel): void
 	{
@@ -156,6 +182,9 @@ trait tinyDebug
 			$this -> openChannel ('stdout');
 	}
 
+	/**
+	 *
+	 */
 	protected function
 	getDebugLevel (): int
 	{
@@ -163,49 +192,58 @@ trait tinyDebug
 	}
 }
 
+//================================================================
+
 class tinyClass // main class for all "tiny" classes
 {
 	use tinyDebug;
 }
 
-// url management
-// This class is mainly a wrapper around parse_url()
-// plus a method to build an url from its parts
-//
-// Analyze an URL
-// $u = new tinyUrl ('http://www.example.com:8080/index.html?x=A&y=B');
-// $u -> getScheme() ==> 'http'
-// $u -> getHost()     ==> 'www.example.com'
-// $u -> getPort()     ==> 8080
-// $u -> getPath()     ==> '/index.html'
-// $u -> getQuery()    ==> 'x=A&y=B'
-//
-// Build an URL
-// $u = new tinyUrl ();
-// $u -> setScheme ('https');
-// $u -> setHost ('www.example.ccom');
-// $u -> setPort (8080);
-// $u -> setPath ('/index.html');
-// $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
-// $u -> getUrl() => 'https://www.example.com:8080/index.html?x=A&y=B'
-//
-// Mixed
-// $u = new tinyUrl ();
-// $u -> setUrl ('http://www.example.com/index.html');
-// $u -> getScheme() ==> 'http'
-// $u -> setUser ('john');
-// $u -> setPass ('secret');
-// $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
-// $u -> getUrl() => 'http://john:secret@www.example.com/index.html?x=A&y=B'
-// echo $u => => http://john:secret@www.example.com/index.html?x=A&y=B
-//
+//================================================================
+
+/**
+ * tinyUrl is a simple class to manage URL
+ *
+ * url management
+ * This class is mainly a wrapper around parse_url()
+ * plus a method to build an url from its parts
+ *
+ * Analyze an URL
+ * $u = new tinyUrl ('http://www.example.com:8080/index.html?x=A&y=B');
+ * $u -> getScheme() ==> 'http'
+ * $u -> getHost()     ==> 'www.example.com'
+ * $u -> getPort()     ==> 8080
+ * $u -> getPath()     ==> '/index.html'
+ * $u -> getQuery()    ==> 'x=A&y=B'
+ *
+ * Build an URL
+ * $u = new tinyUrl ();
+ * $u -> setScheme ('https');
+ * $u -> setHost ('www.example.ccom');
+ * $u -> setPort (8080);
+ * $u -> setPath ('/index.html');
+ * $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
+ * $u -> getUrl() => 'https://www.example.com:8080/index.html?x=A&y=B'
+ *
+ * Mixed
+ * $u = new tinyUrl ();
+ * $u -> setUrl ('http://www.example.com/index.html');
+ * $u -> getScheme() ==> 'http'
+ * $u -> setUser ('john');
+ * $u -> setPass ('secret');
+ * $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
+ * $u -> getUrl() => 'http://john:secret@www.example.com/index.html?x=A&y=B'
+ * echo $u => => http://john:secret@www.example.com/index.html?x=A&y=B
+ *
+ */
+
 class tinyUrl extends tinyClass
 {
 	// full URL
 	private $url = null;
 
 	// parts of the URL
-	private $protocol = '';
+	private $scheme = '';
 	private $host = '';
 	private $port = 0;
 	private $user = '';
@@ -214,6 +252,11 @@ class tinyUrl extends tinyClass
 	private $query = '';
 	private $fragment = '';
 
+	/**
+	 *  Constructor
+	 *
+	 * @param string $url Optional - used to initialize with a patial or full url
+	 */
 	public function
 	__construct (string $url = '')
 	{
@@ -221,7 +264,7 @@ class tinyUrl extends tinyClass
 			return;
 
 		if( !preg_match( "#([^:]+):#", $url, $out ) )
-			throw new tinyHttp_Exception ('url should start with protocol: ');
+			throw new tinyHttp_Exception ('url should start with scheme: ');
 
 		$url_parts = parse_url ($url);
 		if (!$url_parts)
@@ -231,7 +274,7 @@ class tinyUrl extends tinyClass
 
 		//
 		// Scheme
-		// setScheme() will also set default port for this protocol
+		// setScheme() will also set default port for this scheme
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		// ^^^^
@@ -306,6 +349,9 @@ class tinyUrl extends tinyClass
 	// scheme          authority             path       query   fragment
 	//
 
+	/**
+	 * @return string
+	 */
 	public function
 	getAuthority(): string
 	{
@@ -327,20 +373,46 @@ class tinyUrl extends tinyClass
 		return implode ('', $parts);
 	}
 
+	// -------------------------------------------------------
+	// Fragment management
+	// setFragment : set content
+	// getFragment : get content
+
+	/**
+	 * @param string $fragment Set fragment to this value
+	 * @return void
+	 */
 	public function
 	setFragment(string $fragment): void
 	{
 		$this -> fragment = $fragment;
 	}
 
+
+	/**
+	 * @return string
+	 */
 	public function
 	getFragment(): string
 	{
 		return $this -> fragment;
 	}
 
+	// -------------------------------------------------------
+	// Query management
+	// setQuery : set content
+	// resetQuery : clear content
+	// addQuery : add an item to content
+	// getQuery : get the result as a string useable in a URL
+
+
+	/**
+	 * @param mixed $q either a formatted string or an array of key/value
+	 * @param int $enc_type possible values: PHP_QUERY_RFC1738, PHP_QUERY_RFC3986. With 1738, ' ' becomes '+', with 3986, ' ' becomes '%20'
+	 * @return void
+	 */
 	public function
-	setQuery(string $q, $enc_type = PHP_QUERY_RFC3986): void
+	setQuery($q, int $enc_type = PHP_QUERY_RFC3986): void
 	{
 		if (is_array ($q))
 			$query = http_build_query ($q, $enc_type);
@@ -350,141 +422,276 @@ class tinyUrl extends tinyClass
 		$this -> query = $query;
 	}
 
+	/**
+	 * @param string $parm Parameter name
+	 * @param string $value Parameter value
+	 * @param int $enc_type Encoding type (PHP_QUERY_RFC1738, PHP_QUERY_RFC3986)
+	 * @return void
+	 */
+	public function
+	addQuery (string $parm, string $value, $enc_type = PHP_QUERY_RFC3986): void
+	{
+		if ($this -> query == '')
+			$this -> query .= '&';
+		$this -> query .= http_build_query ([ $parm => $value ], $enc_type);
+	}
+
+	/**
+	 *
+	 * @return void
+	 */
+	public function
+	resetQuery(): void
+	{
+		$this -> setQuery('');
+	}
+
+	/**
+	 *
+	 * @return string
+	 */
 	public function
 	getQuery(): string
 	{
 		return $this -> query;
 	}
 
+	// -------------------------------------------------------
+
+	/**
+	 * Set Path
+	 *
+	 * @param string $path New value for path
+	 * @return void
+	 */
 	public function
 	setPath(string $path): void
 	{
 		$this -> path = $path;
 	}
 
+	/**
+	 * Get path
+	 *
+	 * @return string
+	 */
 	public function
 	getPath(): string
 	{
 		return $this -> path;
 	}
 
+	// -------------------------------------------------------
+	// Password management
+
+	/**
+	 * Set pass value
+	 *
+	 * @param string $pass New value
+	 * @return void
+	 */
 	public function
 	setPass(string $pass): void
 	{
 		$this -> pass = $pass;
 	}
 
+	/**
+	 * Get pass value
+	 *
+	 * @return string
+	 */
 	public function
 	getPass(): string
 	{
 		return $this -> pass;
 	}
 
+	// -------------------------------------------------------
+	// User management
+
+	/**
+	 * Set user value
+	 *
+	 * @param string $user New value
+	 */
 	public function
 	setUser(string $user): void
 	{
 		$this -> user = $user;
 	}
 
+	/**
+	 * Get user value
+	 *
+	 * @return string
+	 */
 	public function
 	getUser(): string
 	{
 		return $this -> user;
 	}
 
-	//
+	// -------------------------------------------------------
 	// Scheme
-	//
 
+	/**
+	 * Get scheme value
+	 *
+	 * @return string
+	 */
 	public function
 	getScheme(): string
 	{
-		return $this -> protocol;
+		return $this -> scheme;
 	}
 
+	/**
+	 * Test is scheme is valid
+	 *
+	 * @param string $scheme
+	 * @return bool
+	 */
 	private function
-	isValidScheme (string $protocol): bool
+	isValidScheme (string $scheme): bool
 	{
-		return (in_array ($protocol, [ 'http', 'https' ] ));
+		return (in_array ($scheme, [ 'http', 'https' ] ));
 	}
 
+	/**
+	 * Throws an exception is scheme cannot be used
+	 *
+	 * A scheme can be used if it is valid and current environment
+	 * is able to handle it.
+	 *
+	 * @param string $scheme
+	 * @return void
+	 * @throws tinyHttp_Exception
+	 */
 	private function
-	validateScheme ($protocol): void
+	validateScheme (string $scheme): void
 	{
-		if (!self::isValidScheme ($protocol))
-			throw new tinyHttp_Exception ('protocol is not supported');
-		if ($protocol == 'https')
+		if (!self::isValidScheme ($scheme))
+			throw new tinyHttp_Exception ('scheme is not supported');
+		if ($scheme == 'https')
 			if (!extension_loaded ('openssl'))
 				throw new tinyHttp_Exception ('https requires openssl extension');
 	}
 
+	/**
+	 * Set scheme
+	 *
+	 * @param string $scheme
+	 * @return void
+	 */
 	public function
-	setScheme(string $protocol): void
+	setScheme(string $scheme): void
 	{
-		self::validateScheme ($protocol);
+		self::validateScheme ($scheme);
 
-		$this -> debug ( "protocol: " . $protocol );
+		$this -> debug ( "scheme: " . $scheme );
 
-		$this -> protocol = $protocol;
+		$this -> scheme = $scheme;
 
 		if ($this -> port == 0)
-			$this -> setPort(self::getDefaultPort($protocol));
+			$this -> setPort(self::getDefaultPort($scheme));
 	}
 
-	//
-	// Host
-	//
+	// -------------------------------------------------------
+	// Host management
 
+	/**
+	 * Get host
+	 *
+	 * @return string
+	 */
 	public function
 	getHost(): string
 	{
 		return $this -> host;
 	}
 
-	//
-	// Port
-	//
+	// -------------------------------------------------------
+	// Port management
 
+	/**
+	 * Returns default port for supported shemes
+	 *
+	 * @param string $scheme
+	 * @return int Default port for this scheme
+	 * @throws Exception when scheme is not supported
+	 */
 	private function
-	getDefaultPort (string $protocol): int
+	getDefaultPort (string $scheme): int
 	{
-		switch ($protocol)
+		switch ($scheme)
 		{
 		case 'http'  : return 80;
 		case 'https' : return 443;
-		default      : throw new Exception ('Unknown protocol: ' . $protocol);
+		default      : throw new Exception ('Unknown scheme: ' . $scheme);
 		}
 	}
 
+	/**
+	 * Set port
+	 *
+	 * @param int $port
+	 * @return void
+	 */
 	public function
 	setPort (int $port): void
 	{
 		$this -> port = $port;
 	}
 
+	/**
+	 * Get port
+	 *
+	 * @return int
+	 */
 	public function
 	getPort (): int
 	{
 		return $this -> port;
 	}
 
+	/**
+	 * Determine is current port is the standard one for current scheme
+	 *
+	 * @return bool
+	 */
 	public function
 	isStandardPort (): bool
 	{
-		return $this -> getPort() == $this -> getDefaultPort($this -> protocol);
+		return $this -> getPort() == $this -> getDefaultPort($this -> scheme);
 	}
 
+	// -------------------------------------------------------
+	// Magic functions
+
+	/**
+	 * __toString magic function
+	 *
+	 * @return string
+	 */
 	public function
 	__toString(): string
 	{
 		return $this -> getUrl();
 	}
+	// -------------------------------------------------------
+	// URL management
 
+	/**
+	 * Get url
+	 *
+	 * @return string
+	 */
 	public function
 	getUrl(): string
 	{
 		$parts = [];
-		$parts[] = $this -> protocol . '://';
+		$parts[] = $this -> scheme . '://';
 		$parts[] = $this -> getAuthority();
 		$parts[] = $this -> path;
 		if ($this -> query != '')
@@ -497,6 +704,8 @@ class tinyUrl extends tinyClass
 		return $this -> url;
 	}
 }
+
+//================================================================
 
 class tinyHttp_Exception extends Exception
 {
@@ -720,7 +929,7 @@ class tinyHttp extends tinyClass
 
 	private $response;	// tinyHttpResponse object
 
-	// protocol must be 'http' or 'https'
+	// scheme must be 'http' or 'https'
 	public function
 	__construct(string $url = '', $method = tinyHttp::METHOD_GET)
 	{
@@ -740,9 +949,21 @@ class tinyHttp extends tinyClass
 	}
 
 	public function
+	getUrl (): string
+	{
+		return $this -> url -> getUrl();
+	}
+
+	public function
 	getVersion(): string
 	{
 		return '1.4';
+	}
+
+	public function
+	getScheme(): string
+	{
+		return $this -> url -> getScheme();
 	}
 
 	//
