@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.6 $
+ * @version $Revision: 1.7 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -69,6 +69,11 @@
  * 2019-01-04  1.6  fixed prototype error in tinyUrl::setQuery
  *                  new: tinyUrl::resetQuery(), tinyUrl::addQuery()
  *                  added phpdoc infos for tinyURL (other classes to come)
+ * 2019-01-09  1.7  - added third parm to debug() to provide message level
+ *                    messages below debug level are dropped 
+ *                  - more phpdoc
+ *                  - getVersion() now static
+ *                  - setDebug() restored for compatibility with prev. releases
  */
 
 // Improvement ideas :
@@ -89,12 +94,18 @@ trait tinyDebug
 
 	/**
 	 *
+	 * @param string $message
+	 * @param string $type I/W/E
 	 */
 	protected function
-	debug (string $message, string $level = 'I'): void
+	debug (string $message, string $type = 'I', int $debugLevel = 0): void
 	{
-		if (!$this -> debugLevel)
+		if (!$this -> debugLevel) // no log required
 			return;
+
+		if ($debugLevel != 0)	// if level is set for this message
+			if ($debugLevel < $this -> debugLevel) // but lower than threshold
+				return; // then do not issue this message
 
 		$cols = [ ];
 		$cols[] = date ('Y-m-d H:i:s');
@@ -119,7 +130,7 @@ trait tinyDebug
 	 *
 	 */
 	private function
-	closeCurrentChannel()
+	closeCurrentChannel(): void
 	{
 		switch ($this -> debugChannel)
 		{
@@ -135,9 +146,12 @@ trait tinyDebug
 
 	/**
 	 *
+	 * @param string $channel 'stdout','file'
+	 * @param string $opt meaning depends on the channel - For 'file', filename
+	 * @throws Exception if channel value is incorrect
 	 */
 	private function
-	openChannel (string $channel, string $opt)
+	openChannel (string $channel, string $opt): void
 	{
 		switch ($channel)
 		{
@@ -148,12 +162,17 @@ trait tinyDebug
 			$this -> fp = fopen ($opt, 'a+');
 			$this -> debugFilename = $opt;
 			break;
+		default :
+			throw new Exception ('tinyDebug::openChannel: incorrect value for channel ');
 		}
 		$this -> debugChannel = $channel;
 	}
 
 	/**
 	 *
+	 * @param string $channel 'stdout','file'
+	 * @param string $opt meaning depends on the channel - For 'file', filename
+	 * @throws Exception if channel value is incorrect
 	 */
 	public function
 	setDebugChannel (string $channel, string $opt = ''): void
@@ -164,6 +183,7 @@ trait tinyDebug
 
 	/**
 	 *
+	 * @return string returns current debug channel
 	 */
 	protected function
 	getDebugChannel (): string
@@ -173,6 +193,7 @@ trait tinyDebug
 
 	/**
 	 *
+	 * @param string $debugLevel set a debug level - 0 means no log - higher means more
 	 */
 	public function
 	setDebugLevel (int $debugLevel): void
@@ -184,6 +205,7 @@ trait tinyDebug
 
 	/**
 	 *
+	 * @return int returns current debug level
 	 */
 	protected function
 	getDebugLevel (): int
@@ -255,7 +277,7 @@ class tinyUrl extends tinyClass
 	/**
 	 *  Constructor
 	 *
-	 * @param string $url Optional - used to initialize with a patial or full url
+	 * @param string $url Optional - used to initialize with a partial or full url
 	 */
 	public function
 	__construct (string $url = '')
@@ -954,16 +976,23 @@ class tinyHttp extends tinyClass
 		return $this -> url -> getUrl();
 	}
 
-	public function
+	static public function
 	getVersion(): string
 	{
-		return '1.4';
+		return '1.7';
 	}
 
 	public function
 	getScheme(): string
 	{
 		return $this -> url -> getScheme();
+	}
+
+	// for compatibility
+	public function
+	setDebug (int $level): void
+	{
+		$this -> setDebugLevel ($level);
 	}
 
 	//
