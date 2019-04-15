@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.7 $
+ * @version $Revision: 1.8 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -74,6 +74,8 @@
  *                  - more phpdoc
  *                  - getVersion() now static
  *                  - setDebug() restored for compatibility with prev. releases
+ * 2019-01-28  1.8  bugfix: missing tinyUrl::setUrl()
+ *                  new: tinyHttp::_construct() accepts a tinyUrl object
  */
 
 // Improvement ideas :
@@ -281,6 +283,12 @@ class tinyUrl extends tinyClass
 	 */
 	public function
 	__construct (string $url = '')
+	{
+		$this -> setUrl($url);
+	}
+
+	public function
+	setUrl (string $url): void
 	{
 		if ($url == '')
 			return;
@@ -953,10 +961,10 @@ class tinyHttp extends tinyClass
 
 	// scheme must be 'http' or 'https'
 	public function
-	__construct(string $url = '', $method = tinyHttp::METHOD_GET)
+	__construct($url = null, $method = tinyHttp::METHOD_GET)
 	{
 		$this -> url = null;
-		if ($url != '')
+		if ($url != null)
 			$this -> setUrl ($url);
 
 		$this -> setMethod ($method);
@@ -964,10 +972,17 @@ class tinyHttp extends tinyClass
 		$this -> setContent ('');
 	}
 
+	/**
+	 * set URL
+	 * @param string|tinyUrl $url
+	 */
 	public function
-	setUrl (string $url): void
+	setUrl ($url): void
 	{
-		$this -> url = new tinyUrl ($url);
+		if ($url instanceof tinyUrl)
+			$this -> url = $url;
+		else
+			$this -> url = new tinyUrl ($url);
 	}
 
 	public function
@@ -979,7 +994,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.7';
+		return '1.8';
 	}
 
 	public function
