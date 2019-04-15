@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.8 $
+ * @version $Revision: 1.9 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -76,6 +76,7 @@
  *                  - setDebug() restored for compatibility with prev. releases
  * 2019-01-28  1.8  bugfix: missing tinyUrl::setUrl()
  *                  new: tinyHttp::_construct() accepts a tinyUrl object
+ * 2019-04-15  1.9  bugfix: errors in tinyDebug
  */
 
 // Improvement ideas :
@@ -112,7 +113,7 @@ trait tinyDebug
 		$cols = [ ];
 		$cols[] = date ('Y-m-d H:i:s');
 		$cols[] = sprintf('%-5d',getmypid());
-		$cols[] = $level;
+		$cols[] = $type;
 		$cols[] = $message;
 
 		$str = implode (' ', $cols);
@@ -1061,6 +1062,8 @@ class tinyHttp extends tinyClass
 		$http_context['follow_location']  = $this -> follow_redirects;
 		$http_context['max_redirects']    = $this -> max_redirects;
 		$http_context['ignore_errors'] = true; // if false, file_get_contents() will return false if 404 - if true, will return data
+
+		$this -> debug ( "follow redirects: " . ($this -> follow_redirects ? 'Yes' : 'No') );
 
 		/*
 		Note that if you set the protocol_version option to 1.1 and the server you are requesting from is configured to use keep-alive connections, the function (fopen, file_get_contents, etc.) will "be slow" and take a long time to complete. This is a feature of the HTTP 1.1 protocol you are unlikely to use with stream contexts in PHP.
