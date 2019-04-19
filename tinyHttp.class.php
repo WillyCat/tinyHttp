@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.9 $
+ * @version $Revision: 1.10 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -18,6 +18,7 @@
  * $h -> setConfig ('follow_redirects', true);
  * $h -> setConfig ('max_redirects', 10);
  * $h -> setHeader ('Accept', 'application/vnd.discogs.v2.html+json');
+ * $h -> setCookie ($cookie);
  * $r = $h -> send();
  * $r -> getStatus() // 200
  * $r -> getHeaders() // array of code:value
@@ -77,6 +78,8 @@
  * 2019-01-28  1.8  bugfix: missing tinyUrl::setUrl()
  *                  new: tinyHttp::_construct() accepts a tinyUrl object
  * 2019-04-15  1.9  bugfix: errors in tinyDebug
+ * 2019-04-18  1.10 added setCookie()
+ *                  per RFC 2616, header names are case insensitive, updated code accordignly
  */
 
 // Improvement ideas :
@@ -776,10 +779,18 @@ class tinyHttpResponse extends tinyClass
 		$this -> headers = [ ];
 	}
 
+	private function
+	normalize (string $name): string
+	{
+		$name = trim($name);
+		$name = strtolower ($name);
+		return $name;
+	}
+
 	public function
 	setHeader (string $name, string $value): void
 	{
-		$this -> headers [trim($name)] = trim($value);
+		$this -> headers [$this -> normalize ($name)] = trim($value);
 	}
 
 	public function
@@ -807,14 +818,21 @@ class tinyHttpResponse extends tinyClass
 	}
 
 	public function
+	getCookie(): string
+	{
+		return $this -> getHeader('cookie');
+	}
+
+	public function
 	getHeaders(): array
 	{
 		return $this -> headers;
 	}
 
 	public function
-	getHeader ($header_name): ?string
+	getHeader (string $header_name): ?string
 	{
+		$header_name = $this -> normalize($header_name);
 		if (array_key_exists ($header_name, $this -> headers))
 			return $this -> headers[$header_name];
 		else
@@ -973,6 +991,14 @@ class tinyHttp extends tinyClass
 		$this -> setContent ('');
 	}
 
+	private function
+	normalize (string $name): string
+	{
+		$name = trim($name);
+		$name = strtolower ($name);
+		return $name;
+	}
+
 	/**
 	 * set URL
 	 * @param string|tinyUrl $url
@@ -995,7 +1021,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.8';
+		return '1.10';
 	}
 
 	public function
@@ -1190,6 +1216,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	public function
 	removeHeader (string $name): void
 	{
+		$name = $this -> normalize($name);
 		if (array_key_exists ($name, $this -> query_headers))
 			unset ($this -> query_headers[$name]);
 	}
@@ -1200,10 +1227,17 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		return $this -> query_headers;
 	}
 
-	// to set a single header:
-	// setHeader ('header', 'value')
-	// to set a group of headers:
-	// setHeader ([ 'header1' => 'value1', 'header2', 'value2' ]);
+	/**
+	 * Set one or many header(s)
+	 *
+	 * @param mixed $nameOrArray
+	 * @param string $value
+	 *
+	 * to set a single header:
+	 * setHeader ('header', 'value')
+	 * to set a group of headers:
+	 * setHeader ([ 'header1' => 'value1', 'header2', 'value2' ]);
+	 */
 	public function
 	setHeader ($nameOrArray, string $value = null): void
 	{
@@ -1217,6 +1251,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	private function
 	setSingleHeader (string $name, string $value): void
 	{
+		$name = $this -> normalize($name);
 		$this -> debug ( "setting header:  " . $name . ": " . $value );
 		$this -> query_headers[$name] = $value;
 	}
@@ -1228,11 +1263,22 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		$this -> setHeader('Content-type', $contentType);
 	}
 
-	// shorthand for User-Agent header
+	/**
+	 * @param string $userAgent set user agent
+	 */
 	public function
 	setUserAgent (string $userAgent): void
 	{
 		$this -> setHeader('User-Agent', $userAgent);
+	}
+
+	/**
+	* @param string $cookie Cookie
+	 */
+	public function
+	setCookie (string $cookie): void
+	{
+		$this -> setHeader('Cookie', $userAgent);
 	}
 
 	//
