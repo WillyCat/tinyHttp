@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.10 $
+ * @version $Revision: 1.11 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -80,24 +80,21 @@
  * 2019-04-15  1.9  bugfix: errors in tinyDebug
  * 2019-04-18  1.10 added setCookie()
  *                  per RFC 2616, header names are case insensitive, updated code accordignly
+ * 2019-04-22  1.11 as of php 7.2, create_function is deprecated
  */
-
 // Improvement ideas :
 // - chaining of methods
 //
-
 // Note:
 // 'private' can be called by tinyClass only
 // 'protected' can be called by tinyHttp object (heriting from tinyClass)
 // 'public' can be called outside tinyHttp object (instanciating tinyHttp)
-
 trait tinyDebug
 {
 	private $debugLevel = 0;
 	private $debugChannel = 'stdout'; // 'stdout', 'file'
 	private $debugFile = null;
 	private $debugFilename = '';
-
 	/**
 	 *
 	 * @param string $message
@@ -108,19 +105,15 @@ trait tinyDebug
 	{
 		if (!$this -> debugLevel) // no log required
 			return;
-
 		if ($debugLevel != 0)	// if level is set for this message
 			if ($debugLevel < $this -> debugLevel) // but lower than threshold
 				return; // then do not issue this message
-
 		$cols = [ ];
 		$cols[] = date ('Y-m-d H:i:s');
 		$cols[] = sprintf('%-5d',getmypid());
 		$cols[] = $type;
 		$cols[] = $message;
-
 		$str = implode (' ', $cols);
-
 		switch ($this -> debugChannel)
 		{
 		case 'stdout' :
@@ -131,7 +124,6 @@ trait tinyDebug
 			break;
 		}
 	}
-
 	/**
 	 *
 	 */
@@ -142,14 +134,12 @@ trait tinyDebug
 		{
 		case 'stdout' :
 			break;
-
 		case 'file' :
 			fclose ($this -> debugFile);
 			$this -> debugFile = null;
 			break;
 		}
 	}
-
 	/**
 	 *
 	 * @param string $channel 'stdout','file'
@@ -163,7 +153,6 @@ trait tinyDebug
 		{
 		case 'stdout' :
 			break;
-
 		case 'file' :
 			$this -> fp = fopen ($opt, 'a+');
 			$this -> debugFilename = $opt;
@@ -173,7 +162,6 @@ trait tinyDebug
 		}
 		$this -> debugChannel = $channel;
 	}
-
 	/**
 	 *
 	 * @param string $channel 'stdout','file'
@@ -186,7 +174,6 @@ trait tinyDebug
 		$this -> closeCurrentChannel();
 		$this -> openChannel($channel, $opt);
 	}
-
 	/**
 	 *
 	 * @return string returns current debug channel
@@ -196,7 +183,6 @@ trait tinyDebug
 	{
 		return $this -> channel;
 	}
-
 	/**
 	 *
 	 * @param string $debugLevel set a debug level - 0 means no log - higher means more
@@ -208,7 +194,6 @@ trait tinyDebug
 		if ($this -> debugLevel > 0 && is_null ($this -> debugChannel))
 			$this -> openChannel ('stdout');
 	}
-
 	/**
 	 *
 	 * @return int returns current debug level
@@ -219,16 +204,12 @@ trait tinyDebug
 		return $this -> debugLevel;
 	}
 }
-
 //================================================================
-
 class tinyClass // main class for all "tiny" classes
 {
 	use tinyDebug;
 }
-
 //================================================================
-
 /**
  * tinyUrl is a simple class to manage URL
  *
@@ -264,12 +245,10 @@ class tinyClass // main class for all "tiny" classes
  * echo $u => => http://john:secret@www.example.com/index.html?x=A&y=B
  *
  */
-
 class tinyUrl extends tinyClass
 {
 	// full URL
 	private $url = null;
-
 	// parts of the URL
 	private $scheme = '';
 	private $host = '';
@@ -279,7 +258,6 @@ class tinyUrl extends tinyClass
 	private $path = '/';
 	private $query = '';
 	private $fragment = '';
-
 	/**
 	 *  Constructor
 	 *
@@ -290,22 +268,17 @@ class tinyUrl extends tinyClass
 	{
 		$this -> setUrl($url);
 	}
-
 	public function
 	setUrl (string $url): void
 	{
 		if ($url == '')
 			return;
-
 		if( !preg_match( "#([^:]+):#", $url, $out ) )
 			throw new tinyHttp_Exception ('url should start with scheme: ');
-
 		$url_parts = parse_url ($url);
 		if (!$url_parts)
 			throw new tinyHttp_Exception ('ill formed url');
-
 		$this -> url = $url;
-
 		//
 		// Scheme
 		// setScheme() will also set default port for this scheme
@@ -313,39 +286,30 @@ class tinyUrl extends tinyClass
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		// ^^^^
 		//
-
 		$this -> setScheme( $url_parts['scheme'] );
-
 		//
 		// User & Password
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//        ^^^^ ^^^^^^
-
 		if (array_key_exists ('user', $url_parts))
 			$this -> setUser ($url_parts['user']);
-
 		if (array_key_exists ('pass', $url_parts))
 			$this -> setPass ($url_parts['pass']);
-
-
 		//
 		// Host
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//                    ^^^^^^^^^^^
 		//
-
 		$this -> host     = $url_parts['host'];
 		$this -> debug ( "host: " . $this -> host );
-
 		//
 		// Port
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//                                ^^^^
 		//
-
 		if (array_key_exists ('port', $url_parts))
 			$this -> setPort ($url_parts['port']);
 		//
@@ -353,36 +317,29 @@ class tinyUrl extends tinyClass
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//                                    ^^^^^^^^^^^
-
 		if (array_key_exists ('path', $url_parts))
 			$this -> setPath ($url_parts['path']);
-
 		//
 		// Query
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//                                                ^^^^^^^
-
 		if (array_key_exists ('query', $url_parts))
 			$this -> setQuery ($url_parts['query']);
-
 		//
 		// Anchor / Fragment
 		//
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//                                                        ^^^^
-
 		if (array_key_exists ('fragment', $url_parts))
 			$this -> setFragment ($url_parts['fragment']);
 	}
-
 	//
 	// foo://john:secret@example.com:8042/over/there?name=ferret#nose
         // \_/   \__________________________/\_________/ \_________/ \__/
         //  |                  |                  |           |        |
 	// scheme          authority             path       query   fragment
 	//
-
 	/**
 	 * @return string
 	 */
@@ -403,15 +360,12 @@ class tinyUrl extends tinyClass
 		$parts[] = $this -> host;
 		if ($this -> port != 0 && !$this -> isStandardPort() )
 			$parts[] = ':' . $this -> port;
-
 		return implode ('', $parts);
 	}
-
 	// -------------------------------------------------------
 	// Fragment management
 	// setFragment : set content
 	// getFragment : get content
-
 	/**
 	 * @param string $fragment Set fragment to this value
 	 * @return void
@@ -421,8 +375,6 @@ class tinyUrl extends tinyClass
 	{
 		$this -> fragment = $fragment;
 	}
-
-
 	/**
 	 * @return string
 	 */
@@ -431,15 +383,12 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> fragment;
 	}
-
 	// -------------------------------------------------------
 	// Query management
 	// setQuery : set content
 	// resetQuery : clear content
 	// addQuery : add an item to content
 	// getQuery : get the result as a string useable in a URL
-
-
 	/**
 	 * @param mixed $q either a formatted string or an array of key/value
 	 * @param int $enc_type possible values: PHP_QUERY_RFC1738, PHP_QUERY_RFC3986. With 1738, ' ' becomes '+', with 3986, ' ' becomes '%20'
@@ -452,10 +401,8 @@ class tinyUrl extends tinyClass
 			$query = http_build_query ($q, $enc_type);
 		else
 			$query = $q;
-
 		$this -> query = $query;
 	}
-
 	/**
 	 * @param string $parm Parameter name
 	 * @param string $value Parameter value
@@ -469,7 +416,6 @@ class tinyUrl extends tinyClass
 			$this -> query .= '&';
 		$this -> query .= http_build_query ([ $parm => $value ], $enc_type);
 	}
-
 	/**
 	 *
 	 * @return void
@@ -479,7 +425,6 @@ class tinyUrl extends tinyClass
 	{
 		$this -> setQuery('');
 	}
-
 	/**
 	 *
 	 * @return string
@@ -489,9 +434,7 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> query;
 	}
-
 	// -------------------------------------------------------
-
 	/**
 	 * Set Path
 	 *
@@ -503,7 +446,6 @@ class tinyUrl extends tinyClass
 	{
 		$this -> path = $path;
 	}
-
 	/**
 	 * Get path
 	 *
@@ -514,10 +456,8 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> path;
 	}
-
 	// -------------------------------------------------------
 	// Password management
-
 	/**
 	 * Set pass value
 	 *
@@ -529,7 +469,6 @@ class tinyUrl extends tinyClass
 	{
 		$this -> pass = $pass;
 	}
-
 	/**
 	 * Get pass value
 	 *
@@ -540,10 +479,8 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> pass;
 	}
-
 	// -------------------------------------------------------
 	// User management
-
 	/**
 	 * Set user value
 	 *
@@ -554,7 +491,6 @@ class tinyUrl extends tinyClass
 	{
 		$this -> user = $user;
 	}
-
 	/**
 	 * Get user value
 	 *
@@ -565,10 +501,8 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> user;
 	}
-
 	// -------------------------------------------------------
 	// Scheme
-
 	/**
 	 * Get scheme value
 	 *
@@ -579,7 +513,6 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> scheme;
 	}
-
 	/**
 	 * Test is scheme is valid
 	 *
@@ -591,7 +524,6 @@ class tinyUrl extends tinyClass
 	{
 		return (in_array ($scheme, [ 'http', 'https' ] ));
 	}
-
 	/**
 	 * Throws an exception is scheme cannot be used
 	 *
@@ -611,7 +543,6 @@ class tinyUrl extends tinyClass
 			if (!extension_loaded ('openssl'))
 				throw new tinyHttp_Exception ('https requires openssl extension');
 	}
-
 	/**
 	 * Set scheme
 	 *
@@ -622,18 +553,13 @@ class tinyUrl extends tinyClass
 	setScheme(string $scheme): void
 	{
 		self::validateScheme ($scheme);
-
 		$this -> debug ( "scheme: " . $scheme );
-
 		$this -> scheme = $scheme;
-
 		if ($this -> port == 0)
 			$this -> setPort(self::getDefaultPort($scheme));
 	}
-
 	// -------------------------------------------------------
 	// Host management
-
 	/**
 	 * Get host
 	 *
@@ -644,10 +570,8 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> host;
 	}
-
 	// -------------------------------------------------------
 	// Port management
-
 	/**
 	 * Returns default port for supported shemes
 	 *
@@ -665,7 +589,6 @@ class tinyUrl extends tinyClass
 		default      : throw new Exception ('Unknown scheme: ' . $scheme);
 		}
 	}
-
 	/**
 	 * Set port
 	 *
@@ -677,7 +600,6 @@ class tinyUrl extends tinyClass
 	{
 		$this -> port = $port;
 	}
-
 	/**
 	 * Get port
 	 *
@@ -688,7 +610,6 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> port;
 	}
-
 	/**
 	 * Determine is current port is the standard one for current scheme
 	 *
@@ -699,10 +620,8 @@ class tinyUrl extends tinyClass
 	{
 		return $this -> getPort() == $this -> getDefaultPort($this -> scheme);
 	}
-
 	// -------------------------------------------------------
 	// Magic functions
-
 	/**
 	 * __toString magic function
 	 *
@@ -715,7 +634,6 @@ class tinyUrl extends tinyClass
 	}
 	// -------------------------------------------------------
 	// URL management
-
 	/**
 	 * Get url
 	 *
@@ -732,53 +650,41 @@ class tinyUrl extends tinyClass
 			$parts[] = '?' . $this -> query;
 		if ($this -> fragment != '')
 			$parts[] = '#' . $this -> fragment;
-
 		$this -> url = implode ('', $parts);
-
 		return $this -> url;
 	}
 }
-
 //================================================================
-
 class tinyHttp_Exception extends Exception
 {
 }
-
 class tinyHttp_LogicException extends tinyHttp_Exception
 {
 }
-
 class tinyHttpQuery
 {
 }
-
 // reponse to an http request
-
 class tinyHttpResponse extends tinyClass
 {
 	private $code;
 	private $headers;
 	private $content = null;
 	private $user_agent;
-
 	public function
 	__construct()
 	{
 	}
-
 	public function
 	setContent ($content): void
 	{
 		$this -> content = $content;
 	}
-
 	public function
 	resetHeaders (): void
 	{
 		$this -> headers = [ ];
 	}
-
 	private function
 	normalize (string $name): string
 	{
@@ -786,13 +692,11 @@ class tinyHttpResponse extends tinyClass
 		$name = strtolower ($name);
 		return $name;
 	}
-
 	public function
 	setHeader (string $name, string $value): void
 	{
 		$this -> headers [$this -> normalize ($name)] = trim($value);
 	}
-
 	public function
 	setHeaders (array $headers): void
 	{
@@ -800,7 +704,6 @@ class tinyHttpResponse extends tinyClass
 		foreach ($headers as $hdr)
 		{
 			$t = explode (':', $hdr, 2);
-
 			if (count ($t) > 1)
 				$this -> setHeader ($t[0], $t[1] );
 			else
@@ -810,25 +713,21 @@ class tinyHttpResponse extends tinyClass
 				}
 		}
 	}
-
 	public function
 	getStatus(): int
 	{
 		return $this -> code;
 	}
-
 	public function
 	getCookie(): string
 	{
 		return $this -> getHeader('cookie');
 	}
-
 	public function
 	getHeaders(): array
 	{
 		return $this -> headers;
 	}
-
 	public function
 	getHeader (string $header_name): ?string
 	{
@@ -838,7 +737,6 @@ class tinyHttpResponse extends tinyClass
 		else
 			return null;
 	}
-
 	public function
 	getContentLength(): int
 	{
@@ -850,13 +748,11 @@ class tinyHttpResponse extends tinyClass
 				$l = strlen ($this -> content); // content exists, can be empty (0 byte long)
 		return $l;
 	}
-
 	public function
 	getBody(): string
 	{
 		return $this -> content;
 	}
-
 	public function
 	getReasonPhrase(): string
 	{
@@ -939,45 +835,34 @@ class tinyHttpResponse extends tinyClass
 			"527"  =>  "Railgun Error (Cloudflare)",
 			"530"  =>  "Origin DNS Error (Cloudflare)"
 			];
-
 		$status = $this -> getStatus();
 		if (array_key_exists ($status, $reasons))
 			return $reasons[$status];
 		else
 			return '';
 	}
-
-
 	public function
 	__toString(): string
 	{
 		if (is_null ($this -> content))	// no content
 			return '';
-
 		// content exists (can be empty)
-
 		return $this -> content;
 	}
 }
-
 class tinyHttp extends tinyClass
 {
 	const METHOD_GET  = 'GET';
 	const METHOD_POST = 'POST';
-
 	// parms
 	private $method;	// METHOD_GET, METHOD_POST
 	private $url;           // tinyUrl object
-
 	private $follow_redirects = false;
 	private $max_redirects = 10;
-
 	// query
 	private $query_headers; // array of name => value
 	private $query_content; // string, as sent
-
 	private $response;	// tinyHttpResponse object
-
 	// scheme must be 'http' or 'https'
 	public function
 	__construct($url = null, $method = tinyHttp::METHOD_GET)
@@ -985,12 +870,10 @@ class tinyHttp extends tinyClass
 		$this -> url = null;
 		if ($url != null)
 			$this -> setUrl ($url);
-
 		$this -> setMethod ($method);
 		$this -> resetHeaders();
 		$this -> setContent ('');
 	}
-
 	private function
 	normalize (string $name): string
 	{
@@ -998,7 +881,6 @@ class tinyHttp extends tinyClass
 		$name = strtolower ($name);
 		return $name;
 	}
-
 	/**
 	 * set URL
 	 * @param string|tinyUrl $url
@@ -1011,36 +893,30 @@ class tinyHttp extends tinyClass
 		else
 			$this -> url = new tinyUrl ($url);
 	}
-
 	public function
 	getUrl (): string
 	{
 		return $this -> url -> getUrl();
 	}
-
 	static public function
 	getVersion(): string
 	{
-		return '1.10';
+		return '1.11';
 	}
-
 	public function
 	getScheme(): string
 	{
 		return $this -> url -> getScheme();
 	}
-
 	// for compatibility
 	public function
 	setDebug (int $level): void
 	{
 		$this -> setDebugLevel ($level);
 	}
-
 	//
 	// Configuration
 	//
-
 	public function
 	setConfig ($nameOrConfig, $value = null): void
 	{
@@ -1050,7 +926,6 @@ class tinyHttp extends tinyClass
 		else
 			$this -> setConfigItem ($nameOrConfig, $value);
 	}
-
 	private function
 	setConfigItem ($name, $value)
 	{
@@ -1061,26 +936,20 @@ class tinyHttp extends tinyClass
 		default : throw new tinyHttp_LogicException('unknown parameter: '.$name);
 		}
 	}
-
 	//
 	// Run !
 	//
-
 	public function
 	send(): tinyHttpResponse
 	{
 		if (is_null ($this -> url))
 			throw new tinyHttp_Exception ('no valid url provided');
-
 		if (!in_array ($this -> method, [ 'GET', 'POST' ] ))
 			throw new tinyHttp_Exception ('method not implemented: ' . $this -> method);
-
 		$http_context = [ ];
 		$http_context['method'] = $this -> method;
-
 		// we directly set User-Agent header
 		// $http_context['user_agent']
-
 		// $http_context['proxy']
 		// $http_context['request_fulluri']
 		$http_context['protocol_version'] = 1.1;
@@ -1088,21 +957,16 @@ class tinyHttp extends tinyClass
 		$http_context['follow_location']  = $this -> follow_redirects;
 		$http_context['max_redirects']    = $this -> max_redirects;
 		$http_context['ignore_errors'] = true; // if false, file_get_contents() will return false if 404 - if true, will return data
-
 		$this -> debug ( "follow redirects: " . ($this -> follow_redirects ? 'Yes' : 'No') );
-
 		/*
 		Note that if you set the protocol_version option to 1.1 and the server you are requesting from is configured to use keep-alive connections, the function (fopen, file_get_contents, etc.) will "be slow" and take a long time to complete. This is a feature of the HTTP 1.1 protocol you are unlikely to use with stream contexts in PHP.
 		Simply add a "Conection: close" header to the request to eliminate the keep-alive timeout:
 		*/
-
 		// $this -> setHeader ('Connection', 'Close');
-
 		$host = $this -> url -> getHost();
 		if (!$this -> url -> isStandardPort()) // port can be omitted if standard
 			$host .= ':' . $this -> url -> getPort();
 		$this -> setHeader ('Host', $host);
-
 		$header = '';
 		$hdr = 1;
 		foreach ($this -> query_headers as $name => $value)
@@ -1111,7 +975,6 @@ class tinyHttp extends tinyClass
 			$this -> debug ('Header #' . $hdr++ . ': ' . $name . ': ' . $value );
 		}
 		$http_context['header'] = $header;
-
 /*
 Accept-Encoding: gzip, deflate, br
 Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3
@@ -1122,20 +985,15 @@ DNT: 1
 Upgrade-Insecure-Requests	1
 User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 */
-
 		$http_context['content'] = $this -> query_content;
-
 		$this -> debug ( "building context..." );
-
 		// the entry is 'http' for http & https
 		$context = stream_context_create([ 'http' => $http_context ]);
 		$this -> debug ( "context built" );
-
 		$this -> debug ( "creating tinyHttpResponse..." );
 		$this -> response = new tinyHttpResponse();
 		$this -> debug ( "tinyHttpResponse created" );
 		$this -> response -> setDebugLevel ($this -> getDebugLevel() );
-
 		// if an error occurs, file_get_contents will not raise an exception
 		// but display error message
 		// we do not want the message to pollute display but we do want to miss the message
@@ -1143,16 +1001,19 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		// we do the following :
 		// 1. set an error handler that will catch any error occurring
 		// 2. have the error handler raise an exception with the error message
-
 		$this -> debug ( "setting error handler..." );
+/*
 		set_error_handler(
 		    create_function(
 			'$severity, $message, $file, $line',
 			'throw new ErrorException($message, 0, $severity, $file, $line);'
 		    )
 		);
+*/
+		set_error_handler(
+		    function($severity, $message, $file, $line) {
+			throw new ErrorException($message, 0, $severity, $file, $line); });
 		$this -> debug ( "error handler set" );
-
 		try
 		{
 			$this -> debug ( "Sending request" );
@@ -1167,27 +1028,20 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 			restore_error_handler();
 			throw new tinyHttp_Exception ($e -> getMessage());
 		}
-
-
 		if ($content === false)
 			throw new tinyHttp_Exception ('failure');
-
 		$this -> response -> setContent ($content);
 		$this -> response -> setHeaders ($http_response_header);	// $http_response_header is set by file_get_contents()
-
 		return $this -> response;
 	}
-
 	//
 	// Method
 	//
-
 	public function
 	getMethod(): string
 	{
 		return $this -> method;
 	}
-
 	public function
 	setMethod(string $method): void
 	{
@@ -1202,17 +1056,14 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		}
 		$this -> method = $method;
 	}
-
 	//
 	// Headers
 	//
-
 	public function
 	resetHeaders(): void
 	{
 		$this -> query_headers = [ ];
 	}
-
 	public function
 	removeHeader (string $name): void
 	{
@@ -1220,13 +1071,11 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		if (array_key_exists ($name, $this -> query_headers))
 			unset ($this -> query_headers[$name]);
 	}
-
 	public function
 	getHeaders(): array
 	{
 		return $this -> query_headers;
 	}
-
 	/**
 	 * Set one or many header(s)
 	 *
@@ -1247,7 +1096,6 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		else
 			$this -> setSingleHeader ($nameOrArray, $value);
 	}
-
 	private function
 	setSingleHeader (string $name, string $value): void
 	{
@@ -1255,14 +1103,12 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		$this -> debug ( "setting header:  " . $name . ": " . $value );
 		$this -> query_headers[$name] = $value;
 	}
-
 	// shorthand for Content-Type header
 	public function
 	setContentType (string $contentType): void
 	{
 		$this -> setHeader('Content-type', $contentType);
 	}
-
 	/**
 	 * @param string $userAgent set user agent
 	 */
@@ -1271,7 +1117,6 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	{
 		$this -> setHeader('User-Agent', $userAgent);
 	}
-
 	/**
 	* @param string $cookie Cookie
 	 */
@@ -1280,18 +1125,15 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	{
 		$this -> setHeader('Cookie', $userAgent);
 	}
-
 	//
 	// Content
 	//
-
 	public function
 	setPostValues (array $values): void
 	{
 		$postdata = http_build_query ($values);
 		$this -> setContent ($postdata);
 	}
-
 	public function
 	setContent (string $content): void
 	{
@@ -1304,5 +1146,4 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		return $this -> response;
 	}
 }
-
 ?>
