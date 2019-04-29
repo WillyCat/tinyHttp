@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.11 $
+ * @version $Revision: 1.12 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -19,6 +19,7 @@
  * $h -> setConfig ('max_redirects', 10);
  * $h -> setHeader ('Accept', 'application/vnd.discogs.v2.html+json');
  * $h -> setCookie ($cookie);
+ * $h -> setCallback ($callback);
  * $r = $h -> send();
  * $r -> getStatus() // 200
  * $r -> getHeaders() // array of code:value
@@ -78,9 +79,10 @@
  * 2019-01-28  1.8  bugfix: missing tinyUrl::setUrl()
  *                  new: tinyHttp::_construct() accepts a tinyUrl object
  * 2019-04-15  1.9  bugfix: errors in tinyDebug
- * 2019-04-18  1.10 added setCookie()
- *                  per RFC 2616, header names are case insensitive, updated code accordignly
- * 2019-04-22  1.11 as of php 7.2, create_function is deprecated
+ * 2019-04-18  1.10  added setCookie()
+ *                   per RFC 2616, header names are case insensitive, updated code accordignly
+ * 2019-04-22  1.11  as of php 7.2, create_function is deprecated
+ * 2019-04-28  1.12  tinyHttp::setCallback
  */
 // Improvement ideas :
 // - chaining of methods
@@ -863,6 +865,8 @@ class tinyHttp extends tinyClass
 	private $query_headers; // array of name => value
 	private $query_content; // string, as sent
 	private $response;	// tinyHttpResponse object
+	private $callback;
+
 	// scheme must be 'http' or 'https'
 	public function
 	__construct($url = null, $method = tinyHttp::METHOD_GET)
@@ -873,6 +877,7 @@ class tinyHttp extends tinyClass
 		$this -> setMethod ($method);
 		$this -> resetHeaders();
 		$this -> setContent ('');
+		$this -> callback = null;
 	}
 	private function
 	normalize (string $name): string
@@ -881,6 +886,12 @@ class tinyHttp extends tinyClass
 		$name = strtolower ($name);
 		return $name;
 	}
+	public function
+	setCallback ($callback): void
+	{
+		$this -> callback = $callback;
+	}
+
 	/**
 	 * set URL
 	 * @param string|tinyUrl $url
@@ -901,7 +912,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.11';
+		return '1.12';
 	}
 	public function
 	getScheme(): string
@@ -986,9 +997,12 @@ Upgrade-Insecure-Requests	1
 User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 */
 		$http_context['content'] = $this -> query_content;
+
 		$this -> debug ( "building context..." );
-		// the entry is 'http' for http & https
-		$context = stream_context_create([ 'http' => $http_context ]);
+		$context = stream_context_create([ 'http' => $http_context ]); // the entry is 'http' for http & https
+		if ($this -> callback != null)
+			stream_context_set_params($context, ['notification' => $this -> callback]);
+
 		$this -> debug ( "context built" );
 		$this -> debug ( "creating tinyHttpResponse..." );
 		$this -> response = new tinyHttpResponse();
@@ -1146,4 +1160,6 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		return $this -> response;
 	}
 }
+
+
 ?>
