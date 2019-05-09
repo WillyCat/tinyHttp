@@ -8,10 +8,49 @@ All classes are included in a single file.
 
 ## Usage
 
+### tinyUrl
+
+Analyze an URL
+```php
+$u = new tinyUrl ('http://www.example.com:8080/index.html?x=A&y=B');
+$u -> getScheme() ==> 'http'
+$u -> getHost()     ==> 'www.example.com'
+$u -> getPort()     ==> 8080
+$u -> getPath()     ==> '/index.html'
+$u -> getQuery()    ==> 'x=A&y=B'
+```
+
+Build an URL
+```php
+ $u = new tinyUrl ();
+ $u -> setScheme ('https');
+ $u -> setHost ('www.example.ccom');
+ $u -> setPort (8080);
+ $u -> setPath ('/index.html');
+ $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
+ $u -> getUrl() => 'https://www.example.com:8080/index.html?x=A&y=B'
+```
+
+Mixed
+```php
+$u = new tinyUrl ();
+$u -> setUrl ('http://www.example.com/index.html');
+$u -> getScheme() ==> 'http'
+$u -> setUser ('john');
+$u -> setPass ('secret');
+$u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
+$u -> getUrl() => 'http://john:secret@www.example.com/index.html?x=A&y=B'
+echo $u => http://john:secret@www.example.com/index.html?x=A&y=B
+```
+
+### tinyHttp
+
+Basic usage
 ```php
 echo new tinyHttp('http://www.site.com');
  ```
  
+ Detailed usage
 ```php
  try {
  $h = new tinyHttp ('http://www.site.com');
