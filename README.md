@@ -1,6 +1,8 @@
 # tinyHttp
 
-tinyHttp is a simple PHP library to handle http requests
+tinyHttp is a simple PHP library to run a http client
+whenever possible, interface mimics pear http_request2
+this class is mainly a wrapper around file_get_contents() so it will behave just as file_get_contents does
 
 ## Installation
 
