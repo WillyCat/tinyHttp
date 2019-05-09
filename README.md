@@ -9,6 +9,10 @@ All classes are included in a single file.
 ## Usage
 
 ```php
+echo new tinyHttp('http://www.site.com');
+ ```
+ 
+```php
  try {
  $h = new tinyHttp ('http://www.site.com');
  $h -> getUrl() // http://www.site.com
