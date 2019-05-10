@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.12 $
+ * @version $Revision: 1.14 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -82,7 +82,10 @@
  * 2019-04-18  1.10  added setCookie()
  *                   per RFC 2616, header names are case insensitive, updated code accordignly
  * 2019-04-22  1.11  as of php 7.2, create_function is deprecated
- * 2019-04-28  1.12  tinyHttp::setCallback
+ * 2019-04-28  1.12  new: tinyHttp::setCallback
+ * 2019-05-06  1.13  fixed: tinyHttp::setCookie()
+ *                   new: tinyHttp::resetContent(), tinyHttp::appendContent()
+ * 2019-05-10  1.14  minor code refactoring
  */
 // Improvement ideas :
 // - chaining of methods
@@ -244,7 +247,7 @@ class tinyClass // main class for all "tiny" classes
  * $u -> setPass ('secret');
  * $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
  * $u -> getUrl() => 'http://john:secret@www.example.com/index.html?x=A&y=B'
- * echo $u => => http://john:secret@www.example.com/index.html?x=A&y=B
+ * echo $u => http://john:secret@www.example.com/index.html?x=A&y=B
  *
  */
 class tinyUrl extends tinyClass
@@ -678,9 +681,21 @@ class tinyHttpResponse extends tinyClass
 	{
 	}
 	public function
-	setContent ($content): void
+	setContent (string $content): void
 	{
 		$this -> content = $content;
+	}
+	public function
+	appendContent(string $content): void
+	{
+		if ($this -> content == null)
+			$this -> content = '';
+		$this -> content .= $content;
+	}
+	public function
+	resetContent(): void
+	{
+		$this -> content = null;
 	}
 	public function
 	resetHeaders (): void
@@ -869,7 +884,7 @@ class tinyHttp extends tinyClass
 
 	// scheme must be 'http' or 'https'
 	public function
-	__construct($url = null, $method = tinyHttp::METHOD_GET)
+	__construct($url = null, string $method = tinyHttp::METHOD_GET)
 	{
 		$this -> url = null;
 		if ($url != null)
@@ -912,7 +927,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.12';
+		return '1.14';
 	}
 	public function
 	getScheme(): string
@@ -938,7 +953,7 @@ class tinyHttp extends tinyClass
 			$this -> setConfigItem ($nameOrConfig, $value);
 	}
 	private function
-	setConfigItem ($name, $value)
+	setConfigItem (string $name, string $value): void
 	{
 		switch ($name)
 		{
@@ -947,17 +962,26 @@ class tinyHttp extends tinyClass
 		default : throw new tinyHttp_LogicException('unknown parameter: '.$name);
 		}
 	}
-	//
-	// Run !
-	//
-	public function
-	send(): tinyHttpResponse
+	private function
+	buildHeader (): string
 	{
-		if (is_null ($this -> url))
-			throw new tinyHttp_Exception ('no valid url provided');
-		if (!in_array ($this -> method, [ 'GET', 'POST' ] ))
-			throw new tinyHttp_Exception ('method not implemented: ' . $this -> method);
+		$header = '';
+		$hdr = 1;
+		foreach ($this -> query_headers as $name => $value)
+		{
+			$header .= $name . ': ' . $value . "\r\n";
+			$this -> debug ('Header #' . $hdr++ . ': ' . $name . ': ' . $value );
+		}
+		return $header;
+	}
+	/**
+	 *  build the 'http' part of the http_context array, as used by stream_context_create()
+	 */
+	private function
+	buildStreamHttpContext():array
+	{
 		$http_context = [ ];
+
 		$http_context['method'] = $this -> method;
 		// we directly set User-Agent header
 		// $http_context['user_agent']
@@ -966,48 +990,83 @@ class tinyHttp extends tinyClass
 		$http_context['protocol_version'] = 1.1;
 		// $http_context['timeout']
 		$http_context['follow_location']  = $this -> follow_redirects;
-		$http_context['max_redirects']    = $this -> max_redirects;
 		$http_context['ignore_errors'] = true; // if false, file_get_contents() will return false if 404 - if true, will return data
+
+		$http_context['max_redirects']    = $this -> max_redirects;
 		$this -> debug ( "follow redirects: " . ($this -> follow_redirects ? 'Yes' : 'No') );
-		/*
-		Note that if you set the protocol_version option to 1.1 and the server you are requesting from is configured to use keep-alive connections, the function (fopen, file_get_contents, etc.) will "be slow" and take a long time to complete. This is a feature of the HTTP 1.1 protocol you are unlikely to use with stream contexts in PHP.
-		Simply add a "Conection: close" header to the request to eliminate the keep-alive timeout:
-		*/
-		// $this -> setHeader ('Connection', 'Close');
-		$host = $this -> url -> getHost();
-		if (!$this -> url -> isStandardPort()) // port can be omitted if standard
-			$host .= ':' . $this -> url -> getPort();
-		$this -> setHeader ('Host', $host);
-		$header = '';
-		$hdr = 1;
-		foreach ($this -> query_headers as $name => $value)
-		{
-			$header .= $name . ': ' . $value . "\r\n";
-			$this -> debug ('Header #' . $hdr++ . ': ' . $name . ': ' . $value );
-		}
-		$http_context['header'] = $header;
+
+		$http_context['header'] = $this -> buildHeader();
 /*
 Accept-Encoding: gzip, deflate, br
 Accept-Language: fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3
 Cache-Control: max-age=0
 Connection: keep-alive
-Cookie: _ga=GA1.2.2135724536.151187987…Mb-M-XxntU_m56KegEWdM9qZVshXA
+Cookie: _ga=GA1.2.2135724536.151187987.Mb-M-XxntU_m56KegEWdM9qZVshXA
 DNT: 1
 Upgrade-Insecure-Requests	1
-User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
+User-Agent: Mozilla/5.0 (Macintosh; Intel .) Gecko/20100101 Firefox/60.0
 */
 		$http_context['content'] = $this -> query_content;
 
+		return $http_context;
+	}
+	/**
+	 *  build a http_context array, as used by stream_context_create()
+	 */
+	private function
+	buildStreamContext(): array
+	{
+		// http refers to the protocol and covers http & https
+		return [ 'http' => $this -> buildStreamHttpContext() ];
+	}
+	//
+	// Run !
+	//
+	public function
+	send(): tinyHttpResponse
+	{
+		// ------------------------------
+		// Check args
+		// ------------------------------
+		if (is_null ($this -> url))
+			throw new tinyHttp_Exception ('no valid url provided');
+		if (!in_array ($this -> method, [ 'GET', 'POST' ] ))
+			throw new tinyHttp_Exception ('method not implemented: ' . $this -> method);
+
+		// ------------------------------
+		// Set "Host" HTTP header
+		// ------------------------------
+		$host = $this -> url -> getHost();
+		if (!$this -> url -> isStandardPort()) // port can be omitted if standard
+			$host .= ':' . $this -> url -> getPort();
+		$this -> setHeader ('Host', $host);
+
+		/*
+		Note that if you set the protocol_version option to 1.1 and the server you are requesting from is configured to use keep-alive connections, the function (fopen, file_get_contents, etc.) will "be slow" and take a long time to complete. This is a feature of the HTTP 1.1 protocol you are unlikely to use with stream contexts in PHP.
+		Simply add a "Conection: close" header to the request to eliminate the keep-alive timeout:
+		*/
+		// $this -> setHeader ('Connection', 'Close');
+
+		// ------------------------------
+		// Preparing context
+		// ------------------------------
 		$this -> debug ( "building context..." );
-		$context = stream_context_create([ 'http' => $http_context ]); // the entry is 'http' for http & https
+		$context = stream_context_create( $this -> buildStreamContext() );
 		if ($this -> callback != null)
 			stream_context_set_params($context, ['notification' => $this -> callback]);
-
 		$this -> debug ( "context built" );
+
+		// ------------------------------
+		// Preparing tinyHttpResponse
+		// ------------------------------
 		$this -> debug ( "creating tinyHttpResponse..." );
 		$this -> response = new tinyHttpResponse();
 		$this -> debug ( "tinyHttpResponse created" );
 		$this -> response -> setDebugLevel ($this -> getDebugLevel() );
+
+		// ------------------------------
+		// Setting error handler
+		// ------------------------------
 		// if an error occurs, file_get_contents will not raise an exception
 		// but display error message
 		// we do not want the message to pollute display but we do want to miss the message
@@ -1016,34 +1075,43 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		// 1. set an error handler that will catch any error occurring
 		// 2. have the error handler raise an exception with the error message
 		$this -> debug ( "setting error handler..." );
-/*
-		set_error_handler(
-		    create_function(
-			'$severity, $message, $file, $line',
-			'throw new ErrorException($message, 0, $severity, $file, $line);'
-		    )
-		);
-*/
 		set_error_handler(
 		    function($severity, $message, $file, $line) {
 			throw new ErrorException($message, 0, $severity, $file, $line); });
 		$this -> debug ( "error handler set" );
+
+		// ------------------------------
+		// Let's go
+		// ------------------------------
 		try
 		{
 			$this -> debug ( "Sending request" );
 			$this -> debug ( 'url: ' . $this -> url -> getUrl());
 			$reqStart = microtime(true);
+
 			$content = file_get_contents ($this -> url -> getUrl(), false, $context);
+
 			$reqEnd = microtime(true);
 			$this -> debug ( "Got a response (took " .sprintf ('%.3f',($reqEnd - $reqStart)). " s)" );
-			// $this -> debug ( $content );
 			restore_error_handler();
 		} catch (Exception $e) {
 			restore_error_handler();
+			$this -> debug ( 'throwing exception: ' . $e -> getMessage());
 			throw new tinyHttp_Exception ($e -> getMessage());
 		}
+
+		// ------------------------------
+		// Check result
+		// ------------------------------
 		if ($content === false)
+		{
+			$this -> debug ( 'throwing exception: failure');
 			throw new tinyHttp_Exception ('failure');
+		}
+
+		// ------------------------------
+		// Capture response
+		// ------------------------------
 		$this -> response -> setContent ($content);
 		$this -> response -> setHeaders ($http_response_header);	// $http_response_header is set by file_get_contents()
 		return $this -> response;
@@ -1059,6 +1127,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	public function
 	setMethod(string $method): void
 	{
+		$method = strtoupper($method);
 		$this -> debug ( "setting method to " . $method );
 		switch ($method)
 		{
@@ -1067,6 +1136,8 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		case tinyHttp::METHOD_POST :
 			$this -> setContentType ('application/x-www-form-urlencoded');
 			break;
+		default :
+			throw new tinyHttp_Exception ('Invalid method');
 		}
 		$this -> method = $method;
 	}
@@ -1137,7 +1208,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 	public function
 	setCookie (string $cookie): void
 	{
-		$this -> setHeader('Cookie', $userAgent);
+		$this -> setHeader('Cookie', $cookie);
 	}
 	//
 	// Content
@@ -1160,6 +1231,5 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel …) Gecko/20100101 Firefox/60.0
 		return $this -> response;
 	}
 }
-
 
 ?>
