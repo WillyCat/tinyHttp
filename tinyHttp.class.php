@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.14 $
+ * @version $Revision: 1.15 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -86,134 +86,12 @@
  * 2019-05-06  1.13  fixed: tinyHttp::setCookie()
  *                   new: tinyHttp::resetContent(), tinyHttp::appendContent()
  * 2019-05-10  1.14  minor code refactoring
+ * 2019-08-05  1.15  tinyClass exported to tinyClass.class.php
+ *                   managing header with multiple values (like Set-Cookie)
  */
-// Improvement ideas :
-// - chaining of methods
-//
-// Note:
-// 'private' can be called by tinyClass only
-// 'protected' can be called by tinyHttp object (heriting from tinyClass)
-// 'public' can be called outside tinyHttp object (instanciating tinyHttp)
-trait tinyDebug
-{
-	private $debugLevel = 0;
-	private $debugChannel = 'stdout'; // 'stdout', 'file'
-	private $debugFile = null;
-	private $debugFilename = '';
-	/**
-	 *
-	 * @param string $message
-	 * @param string $type I/W/E
-	 */
-	protected function
-	debug (string $message, string $type = 'I', int $debugLevel = 0): void
-	{
-		if (!$this -> debugLevel) // no log required
-			return;
-		if ($debugLevel != 0)	// if level is set for this message
-			if ($debugLevel < $this -> debugLevel) // but lower than threshold
-				return; // then do not issue this message
-		$cols = [ ];
-		$cols[] = date ('Y-m-d H:i:s');
-		$cols[] = sprintf('%-5d',getmypid());
-		$cols[] = $type;
-		$cols[] = $message;
-		$str = implode (' ', $cols);
-		switch ($this -> debugChannel)
-		{
-		case 'stdout' :
-			echo $str . "\n";
-			break;
-		case 'file' :
-			fwrite ($this -> debugFile, $str . "\n");
-			break;
-		}
-	}
-	/**
-	 *
-	 */
-	private function
-	closeCurrentChannel(): void
-	{
-		switch ($this -> debugChannel)
-		{
-		case 'stdout' :
-			break;
-		case 'file' :
-			fclose ($this -> debugFile);
-			$this -> debugFile = null;
-			break;
-		}
-	}
-	/**
-	 *
-	 * @param string $channel 'stdout','file'
-	 * @param string $opt meaning depends on the channel - For 'file', filename
-	 * @throws Exception if channel value is incorrect
-	 */
-	private function
-	openChannel (string $channel, string $opt): void
-	{
-		switch ($channel)
-		{
-		case 'stdout' :
-			break;
-		case 'file' :
-			$this -> fp = fopen ($opt, 'a+');
-			$this -> debugFilename = $opt;
-			break;
-		default :
-			throw new Exception ('tinyDebug::openChannel: incorrect value for channel ');
-		}
-		$this -> debugChannel = $channel;
-	}
-	/**
-	 *
-	 * @param string $channel 'stdout','file'
-	 * @param string $opt meaning depends on the channel - For 'file', filename
-	 * @throws Exception if channel value is incorrect
-	 */
-	public function
-	setDebugChannel (string $channel, string $opt = ''): void
-	{
-		$this -> closeCurrentChannel();
-		$this -> openChannel($channel, $opt);
-	}
-	/**
-	 *
-	 * @return string returns current debug channel
-	 */
-	protected function
-	getDebugChannel (): string
-	{
-		return $this -> channel;
-	}
-	/**
-	 *
-	 * @param string $debugLevel set a debug level - 0 means no log - higher means more
-	 */
-	public function
-	setDebugLevel (int $debugLevel): void
-	{
-		$this -> debugLevel = $debugLevel;
-		if ($this -> debugLevel > 0 && is_null ($this -> debugChannel))
-			$this -> openChannel ('stdout');
-	}
-	/**
-	 *
-	 * @return int returns current debug level
-	 */
-	protected function
-	getDebugLevel (): int
-	{
-		return $this -> debugLevel;
-	}
-}
-//================================================================
-class tinyClass // main class for all "tiny" classes
-{
-	use tinyDebug;
-}
+
+require_once 'tinyClass.class.php';
+
 //================================================================
 /**
  * tinyUrl is a simple class to manage URL
@@ -710,10 +588,30 @@ class tinyHttpResponse extends tinyClass
 		return $name;
 	}
 	public function
-	setHeader (string $name, string $value): void
+	addHeader (string $header_name, string $value): void
 	{
-		$this -> headers [$this -> normalize ($name)] = trim($value);
+		$name = $this -> normalize ($header_name);
+		if (array_key_exists ($name, $this -> headers))
+			if (is_array ($this -> headers [$name]))
+				$this -> headers [$name][] = $value;
+			else
+			{
+				$value1 = $this -> headers [$name];
+				$this -> headers [$name] = [ ];
+				$this -> headers [$name][] = $value1;
+				$this -> headers [$name][] = $value;
+			}
+		else
+			$this -> headers [$name] = trim($value);
 	}
+	/**
+	* header is an array of strings
+	* format is either :
+	* HTTP/1.1 301 Moved Permanently
+	* or
+	* Header-Name: header value
+	* some headers can be sent multiple times (like Set-Cookie)
+	*/
 	public function
 	setHeaders (array $headers): void
 	{
@@ -721,8 +619,8 @@ class tinyHttpResponse extends tinyClass
 		foreach ($headers as $hdr)
 		{
 			$t = explode (':', $hdr, 2);
-			if (count ($t) > 1)
-				$this -> setHeader ($t[0], $t[1] );
+			if (count ($t) > 1) 
+				$this -> addHeader ($t[0], $t[1] );
 			else
 				if (preg_match('#HTTP/[0-9\.]+\s+([0-9]+)#',$hdr, $out ))
 				{
@@ -745,14 +643,27 @@ class tinyHttpResponse extends tinyClass
 	{
 		return $this -> headers;
 	}
+	/**
+	* if no such header, returns null
+	* if header appears multiple times, returns an array of values
+	* if header appears one, depends on returnSingleAsString
+	*    if true, returns a string
+	*    if false, return a singleton
+	*/
 	public function
-	getHeader (string $header_name): ?string
+	getHeader (string $header_name, bool $returnSingleAsString = true)
 	{
 		$header_name = $this -> normalize($header_name);
-		if (array_key_exists ($header_name, $this -> headers))
+		if (!array_key_exists ($header_name, $this -> headers))
+			return null;
+
+		if (is_array ($this -> headers[$header_name]))
+			return $this -> headers[$header_name];
+
+		if ($returnSingleAsString)
 			return $this -> headers[$header_name];
 		else
-			return null;
+			return array ($this -> headers[$header_name]);
 	}
 	public function
 	getContentLength(): int
@@ -927,7 +838,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.14';
+		return '1.15';
 	}
 	public function
 	getScheme(): string
