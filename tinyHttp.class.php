@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.15 $
+ * @version $Revision: 1.16 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -88,6 +88,7 @@
  * 2019-05-10  1.14  minor code refactoring
  * 2019-08-05  1.15  tinyClass exported to tinyClass.class.php
  *                   managing header with multiple values (like Set-Cookie)
+ * 2019-08-07  1.16  new: tinyUrl::getOrigin()
  */
 
 require_once 'tinyClass.class.php';
@@ -103,10 +104,11 @@ require_once 'tinyClass.class.php';
  * Analyze an URL
  * $u = new tinyUrl ('http://www.example.com:8080/index.html?x=A&y=B');
  * $u -> getScheme() ==> 'http'
- * $u -> getHost()     ==> 'www.example.com'
- * $u -> getPort()     ==> 8080
- * $u -> getPath()     ==> '/index.html'
- * $u -> getQuery()    ==> 'x=A&y=B'
+ * $u -> getHost()   ==> 'www.example.com'
+ * $u -> getPort()   ==> 8080
+ * $u -> getPath()   ==> '/index.html'
+ * $u -> getQuery()  ==> 'x=A&y=B'
+ * $u -> getOrigin() ==> 'http://www.example.com'
  *
  * Build an URL
  * $u = new tinyUrl ();
@@ -116,6 +118,7 @@ require_once 'tinyClass.class.php';
  * $u -> setPath ('/index.html');
  * $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
  * $u -> getUrl() => 'https://www.example.com:8080/index.html?x=A&y=B'
+ * $u -> getOrigin() => 'http://www.example.com'
  *
  * Mixed
  * $u = new tinyUrl ();
@@ -125,6 +128,7 @@ require_once 'tinyClass.class.php';
  * $u -> setPass ('secret');
  * $u -> setQuery([ 'x' => 'A', 'y' => 'B' ])
  * $u -> getUrl() => 'http://john:secret@www.example.com/index.html?x=A&y=B'
+ * $u -> getOrigin() => 'http://www.example.com'
  * echo $u => http://john:secret@www.example.com/index.html?x=A&y=B
  *
  */
@@ -185,6 +189,8 @@ class tinyUrl extends tinyClass
 		// http://john:secret@www.abc.com:8080/index.html?x=A&y=B#here
 		//                    ^^^^^^^^^^^
 		//
+		if (!array_key_exists ('host', $url_parts))
+			throw new Exception ('Missing host in url ('.$url.')');
 		$this -> host     = $url_parts['host'];
 		$this -> debug ( "host: " . $this -> host );
 		//
@@ -224,6 +230,7 @@ class tinyUrl extends tinyClass
 	// scheme          authority             path       query   fragment
 	//
 	/**
+	 * http://john:secret@www.example.com:8080/index.html?x=A&y=B#C ==> john:secret@www.example.com:8080
 	 * @return string
 	 */
 	public function
@@ -245,6 +252,19 @@ class tinyUrl extends tinyClass
 			$parts[] = ':' . $this -> port;
 		return implode ('', $parts);
 	}
+
+	/**
+	 * Get origin
+	 * http://john:secret@www.example.com:8080/index.html?x=A&y=B#C ==> http://www.example.com
+	 *
+	 * @return string
+	 */
+	public function
+	getOrigin(): string
+	{
+		return $this -> scheme . '://' . $this -> host;
+	}
+
 	// -------------------------------------------------------
 	// Fragment management
 	// setFragment : set content
@@ -260,6 +280,7 @@ class tinyUrl extends tinyClass
 	}
 	/**
 	 * @return string
+	 * http://john:secret@www.example.com:8080/index.html?x=A&y=B#C ==> C
 	 */
 	public function
 	getFragment(): string
@@ -838,7 +859,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.15';
+		return '1.16';
 	}
 	public function
 	getScheme(): string
