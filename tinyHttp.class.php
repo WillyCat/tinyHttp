@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.17 $
+ * @version $Revision: 1.18 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -89,7 +89,9 @@
  * 2019-08-05  1.15  tinyClass exported to tinyClass.class.php
  *                   managing header with multiple values (like Set-Cookie)
  * 2019-08-07  1.16  new: tinyUrl::getOrigin()
- * 2019-08-12  1.17
+ * 2019-08-12  1.17  change to comments only
+ * 2019-08-19  1.18  tinyUrl::setHost() was documented but not defined
+ *                   tinyUrl::addQuery() was buggy
  */
 
 require_once 'tinyClass.class.php';
@@ -327,7 +329,7 @@ class tinyUrl extends tinyClass
 	public function
 	addQuery (string $parm, string $value, $enc_type = PHP_QUERY_RFC3986): void
 	{
-		if ($this -> query == '')
+		if ($this -> query != '')
 			$this -> query .= '&';
 		$this -> query .= http_build_query ([ $parm => $value ], $enc_type);
 	}
@@ -484,6 +486,11 @@ class tinyUrl extends tinyClass
 	getHost(): string
 	{
 		return $this -> host;
+	}
+	public function
+	setHost (string $host): void
+	{
+		$this -> host = $host;
 	}
 	// -------------------------------------------------------
 	// Port management
@@ -870,7 +877,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.17';
+		return '1.18';
 	}
 	public function
 	getScheme(): string
