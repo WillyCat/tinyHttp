@@ -1,7 +1,7 @@
 <?php
 /**
  * @package tinyHttp
- * @version $Revision: 1.16 $
+ * @version $Revision: 1.17 $
  *
  * minimal http class using only native php functions
  * whenever possible, interface mimics pear http_request2
@@ -89,6 +89,7 @@
  * 2019-08-05  1.15  tinyClass exported to tinyClass.class.php
  *                   managing header with multiple values (like Set-Cookie)
  * 2019-08-07  1.16  new: tinyUrl::getOrigin()
+ * 2019-08-12  1.17
  */
 
 require_once 'tinyClass.class.php';
@@ -223,14 +224,25 @@ class tinyUrl extends tinyClass
 		if (array_key_exists ('fragment', $url_parts))
 			$this -> setFragment ($url_parts['fragment']);
 	}
-	//
-	// foo://john:secret@example.com:8042/over/there?name=ferret#nose
-        // \_/   \__________________________/\_________/ \_________/ \__/
-        //  |                  |                  |           |        |
-	// scheme          authority             path       query   fragment
+	//             origin
+	//               |
+	//     |-------- + ---------|
+	//     v                    v
+	//  ______              _________
+	// /      \            /         \
+	// https://john:secret@example.com:8042/over/there?name=ferret&way=up#nose
+ 	// \___/   \__/ \____/ \_________/ \__/\_________/ \________________/ \__/
+	//   |       |     |        |        |      |              |            |  
+	// scheme   user pass      host     port   path          query       fragment
+        //         \__________________________/
+        //                       |    
+	//                   authority
+	// \_____________________________________________________________________/
+	//                                   |
+	//                                  url
 	//
 	/**
-	 * http://john:secret@www.example.com:8080/index.html?x=A&y=B#C ==> john:secret@www.example.com:8080
+	 * Get authority part of the url
 	 * @return string
 	 */
 	public function
@@ -254,19 +266,18 @@ class tinyUrl extends tinyClass
 	}
 
 	/**
-	 * Get origin
-	 * http://john:secret@www.example.com:8080/index.html?x=A&y=B#C ==> http://www.example.com
+	 * Get origin (scheme + host)
 	 *
 	 * @return string
 	 */
 	public function
 	getOrigin(): string
 	{
-		return $this -> scheme . '://' . $this -> host;
+		return $this -> getScheme() . '://' . $this -> getHost();
 	}
 
 	// -------------------------------------------------------
-	// Fragment management
+	// Fragment (=anchor) management
 	// setFragment : set content
 	// getFragment : get content
 	/**
@@ -279,8 +290,8 @@ class tinyUrl extends tinyClass
 		$this -> fragment = $fragment;
 	}
 	/**
+	*  Get fragment of the url
 	 * @return string
-	 * http://john:secret@www.example.com:8080/index.html?x=A&y=B#C ==> C
 	 */
 	public function
 	getFragment(): string
@@ -859,7 +870,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.16';
+		return '1.17';
 	}
 	public function
 	getScheme(): string
