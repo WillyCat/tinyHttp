@@ -101,10 +101,10 @@ trait tinyDebug
 	 *
 	 * @return string returns current debug channel
 	 */
-	protected function
+	public function
 	getDebugChannel (): string
 	{
-		return $this -> channel;
+		return $this -> debugChannel;
 	}
 	/**
 	 *
