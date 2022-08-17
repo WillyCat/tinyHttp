@@ -10,7 +10,7 @@ $http->setConfig('follow_redirects',true);
 $response = $http->send();
 echo 'URL: ' . $http -> getUrl() . "\n";
 echo 'Status: ' . $response -> getStatus() . ' - ' . $response -> getReasonPhrase() . "\n";
-echo 'Protocol: ' . $http -> getProtocol() . "\n";
+echo 'Protocol: ' . $http -> getScheme() . "\n";
 echo 'Headers: ' . "\n";
 $headers = $response -> getHeaders();
 foreach ($headers as $name => $value)

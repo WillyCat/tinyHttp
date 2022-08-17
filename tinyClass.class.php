@@ -27,7 +27,10 @@ trait tinyDebug
 	debug (string $message, string $type = 'I', int $debugLevel = 0): void
 	{
 		if (!$this -> debugLevel) // no log required
+		{
+//echo 'msg is ['.$message.'], debugLevel is ' . $this -> debugLevel . "\n";
 			return;
+		}
 		if ($debugLevel != 0)	// if level is set for this message
 			if ($debugLevel < $this -> debugLevel) // but lower than threshold
 				return; // then do not issue this message
@@ -121,7 +124,7 @@ trait tinyDebug
 	 *
 	 * @return int returns current debug level
 	 */
-	protected function
+	public function
 	getDebugLevel (): int
 	{
 		return $this -> debugLevel;
