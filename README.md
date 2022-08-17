@@ -8,7 +8,8 @@ this class does NOT use cURL or any third party librairies but is based on file_
 
 ## Installation
 
-All classes are included in a single file.
+Until version 1.19, all classes were included in a single file.
+Starting with 1.20, each class has its own file.
 
 ## Usage
 
