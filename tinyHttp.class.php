@@ -94,6 +94,7 @@
  *                   tinyUrl::addQuery() was buggy
  * 2021-07-10  1.19  extended debug
  * 2022-08-17  1.20  split each class in a separate file
+ * 2023-06-04  1.21  now handling method HEAD
  */
 
 require_once 'tinyhttp_Exception.class.php';
@@ -107,8 +108,9 @@ class tinyHttp extends tinyClass
 {
 	const METHOD_GET  = 'GET';
 	const METHOD_POST = 'POST';
+	const METHOD_HEAD = 'HEAD';
 	// parms
-	private $method;	// METHOD_GET, METHOD_POST
+	private $method;	// METHOD_GET, METHOD_POST, METHOD_HEAD
 	private $url;           // tinyUrl object
 	private $follow_redirects = false;
 	private $max_redirects = 10;
@@ -163,7 +165,7 @@ class tinyHttp extends tinyClass
 	static public function
 	getVersion(): string
 	{
-		return '1.20';
+		return '1.21';
 	}
 	public function
 	getScheme(): string
@@ -266,7 +268,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel .) Gecko/20100101 Firefox/60.0
 		// ------------------------------
 		if (is_null ($this -> url))
 			throw new tinyHttp_Exception ('no valid url provided');
-		if (!in_array ($this -> method, [ 'GET', 'POST' ] ))
+		if (!in_array ($this -> method, [ 'GET', 'POST', 'HEAD' ] ))
 			throw new tinyHttp_Exception ('method not implemented: ' . $this -> method);
 
 		// ------------------------------
@@ -375,6 +377,7 @@ User-Agent: Mozilla/5.0 (Macintosh; Intel .) Gecko/20100101 Firefox/60.0
 		$this -> debug ( "setting method to " . $method );
 		switch ($method)
 		{
+		case tinyHttp::METHOD_HEAD :
 		case tinyHttp::METHOD_GET :
 			break;
 		case tinyHttp::METHOD_POST :
